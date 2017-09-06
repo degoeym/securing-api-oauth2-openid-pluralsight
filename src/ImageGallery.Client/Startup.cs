@@ -66,9 +66,11 @@ namespace ImageGallery.Client
                 Scope = { "openid", "profile" },
                 ResponseType = "code id_token",
                //  CallbackPath = new PathString("...")
+               // SignedOutCallbackPath = new PathString("")
                SignInScheme = "Cookies",
                SaveTokens = true,
-               ClientSecret = "secret"
+               ClientSecret = "secret",
+               GetClaimsFromUserInfoEndpoint = true
             });
             
             app.UseStaticFiles();
