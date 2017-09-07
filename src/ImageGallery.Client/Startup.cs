@@ -5,6 +5,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
 using ImageGallery.Client.Services;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using System.Threading.Tasks;
+using System.Security.Claims;
+using System.Linq;
+using Microsoft.AspNetCore.Authentication;
 
 namespace ImageGallery.Client
 {
@@ -54,8 +60,11 @@ namespace ImageGallery.Client
 
             app.UseCookieAuthentication(new CookieAuthenticationOptions
             {
-                AuthenticationScheme = "Cookies"
+                AuthenticationScheme = "Cookies",
+                AccessDeniedPath = "/Authorization/AccessDenied"
             });
+
+            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
             app.UseOpenIdConnectAuthentication(new OpenIdConnectOptions
             {
@@ -63,14 +72,40 @@ namespace ImageGallery.Client
                 Authority = "https://localhost:44342/",
                 RequireHttpsMetadata = true,
                 ClientId = "imagegalleryclient",
-                Scope = { "openid", "profile" },
+                Scope = { "openid", "profile", "address", "roles" },
                 ResponseType = "code id_token",
                //  CallbackPath = new PathString("...")
                // SignedOutCallbackPath = new PathString("")
                SignInScheme = "Cookies",
                SaveTokens = true,
                ClientSecret = "secret",
-               GetClaimsFromUserInfoEndpoint = true
+               GetClaimsFromUserInfoEndpoint = true,
+               Events = new OpenIdConnectEvents()
+               {
+                   OnTokenValidated = tokenValidatedContext =>
+                   {
+                       var identity = tokenValidatedContext.Ticket.Principal.Identity as ClaimsIdentity;
+                       var subjectClaim = identity.Claims.FirstOrDefault(z => z.Type == "sub");
+                       var newClaimsIdentity = new ClaimsIdentity(
+                           tokenValidatedContext.Ticket.AuthenticationScheme, 
+                           "given_name", 
+                           "role");
+
+                       newClaimsIdentity.AddClaim(subjectClaim);
+
+                       tokenValidatedContext.Ticket = new AuthenticationTicket(
+                           new ClaimsPrincipal(newClaimsIdentity), 
+                           tokenValidatedContext.Ticket.Properties, 
+                           tokenValidatedContext.Ticket.AuthenticationScheme);
+                       return Task.FromResult(0);
+                   },
+
+                   OnUserInformationReceived = userInformationReceivedContext =>
+                   {
+                       userInformationReceivedContext.User.Remove("address");
+                       return Task.FromResult(0);
+                   }
+               }
             });
             
             app.UseStaticFiles();
