@@ -57,6 +57,15 @@ namespace Marvin.IDP
             };
         }
 
+        public static IEnumerable<ApiResource> GetApiResources()
+        {
+            return new List<ApiResource>()
+            {
+                new ApiResource("imagegalleryapi", "Image Gallery API", 
+                new List<string>() { "role" })
+            };
+        }
+
         public static IEnumerable<Client> GetClients()
         {
             return new List<Client>()
@@ -75,7 +84,8 @@ namespace Marvin.IDP
                         IdentityServerConstants.StandardScopes.OpenId,
                         IdentityServerConstants.StandardScopes.Profile,
                         IdentityServerConstants.StandardScopes.Address, 
-                        "roles"
+                        "roles", 
+                        "imagegalleryapi"
                     },
                     ClientSecrets =
                     {
