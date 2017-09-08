@@ -93,7 +93,14 @@ namespace ImageGallery.API
 
             // seed the DB with data
             galleryContext.EnsureSeedDataForContext();
-			
+
+            app.UseIdentityServerAuthentication(new IdentityServerAuthenticationOptions()
+            {
+                Authority = "https://localhost:44342/",
+                RequireHttpsMetadata = true,
+                ApiName = "imagegalleryapi"
+            });
+
             app.UseMvc(); 
         }
     }

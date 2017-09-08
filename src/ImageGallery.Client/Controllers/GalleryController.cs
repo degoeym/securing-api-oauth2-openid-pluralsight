@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using System.Diagnostics;
 using IdentityModel.Client;
+using System.Net;
 
 namespace ImageGallery.Client.Controllers
 {
@@ -44,7 +45,12 @@ namespace ImageGallery.Client.Controllers
                     JsonConvert.DeserializeObject<IList<Image>>(imagesAsString).ToList());
 
                 return View(galleryIndexViewModel);
-            }          
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized ||
+                response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                return RedirectToAction("AccessDenied", "Authorization");
+            }
 
             throw new Exception($"A problem happened while calling the API: {response.ReasonPhrase}");
         }
@@ -68,6 +74,11 @@ namespace ImageGallery.Client.Controllers
                 };
                 
                 return View(editImageViewModel);
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized || 
+                response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                return RedirectToAction("AccessDenied", "Authorization");
             }
            
             throw new Exception($"A problem happened while calling the API: {response.ReasonPhrase}");
@@ -116,10 +127,16 @@ namespace ImageGallery.Client.Controllers
             {
                 return RedirectToAction("Index");
             }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized || 
+                response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                return RedirectToAction("AccessDenied", "Authorization");
+            }
        
             throw new Exception($"A problem happened while calling the API: {response.ReasonPhrase}");
         }
         
+        [Authorize(Roles = "PayingUser")]
         public IActionResult AddImage()
         {
             return View();
@@ -127,6 +144,7 @@ namespace ImageGallery.Client.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "PayingUser")]
         public async Task<IActionResult> AddImage(AddImageViewModel addImageViewModel)
         {   
             if (!ModelState.IsValid)
