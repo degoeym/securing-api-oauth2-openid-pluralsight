@@ -26,7 +26,9 @@ namespace Marvin.IDP
                         new Claim("given_name", "Frank"),
                         new Claim("family_name", "Underwood"),
                         new Claim("address", "1, Main Road"),
-                        new Claim("role", "FreeUser")
+                        new Claim("role", "FreeUser"), 
+                        new Claim("subscriptionlevel", "FreeUser"), 
+                        new Claim("country", "nl")
                     }
                 },
                 new TestUser
@@ -40,7 +42,9 @@ namespace Marvin.IDP
                         new Claim("given_name", "Claire"),
                         new Claim("family_name", "Underwood"),
                         new Claim("address", "2, Big Street"),
-                        new Claim("role", "PayingUser")
+                        new Claim("role", "PayingUser"), 
+                        new Claim("subscriptionlevel", "PayingUser"), 
+                        new Claim("country", "be")
                     }
                 }
             };
@@ -52,8 +56,16 @@ namespace Marvin.IDP
             {
                 new IdentityResources.OpenId(),
                 new IdentityResources.Profile(),
-                new IdentityResources.Address(), 
-                new IdentityResource("roles", "Your role(s)", new List<string>() { "role" })
+                new IdentityResources.Address(),
+                new IdentityResource("roles", 
+                    "Your role(s)", 
+                    new List<string>() { "role" }),
+                new IdentityResource("country", 
+                    "The country you're living in", 
+                    new List<string> { "country" }),
+                new IdentityResource("subscriptionlevel", 
+                    "Your subscription level", 
+                    new List<string> { "subscriptionlevel" })
             };
         }
 
@@ -77,7 +89,7 @@ namespace Marvin.IDP
                     AllowedGrantTypes = GrantTypes.Hybrid,
                     RedirectUris = new List<string>()
                     {
-                        "https://localhost:44383/signin-oidc"
+                        "https://localhost:44388/signin-oidc"
                     },
                     AllowedScopes =
                     {
@@ -85,7 +97,9 @@ namespace Marvin.IDP
                         IdentityServerConstants.StandardScopes.Profile,
                         IdentityServerConstants.StandardScopes.Address, 
                         "roles", 
-                        "imagegalleryapi"
+                        "imagegalleryapi",
+                        "country",
+                        "subscriptionlevel"
                     },
                     ClientSecrets =
                     {
@@ -93,7 +107,7 @@ namespace Marvin.IDP
                     },
                     PostLogoutRedirectUris =
                     {
-                        "https://localhost:44383/signout-callback-oidc"
+                        "https://localhost:44388/signout-callback-oidc"
                     }
                     // AlwaysIncludeUserClaimsInIdToken = true
                 }

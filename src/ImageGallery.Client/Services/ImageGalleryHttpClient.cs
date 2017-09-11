@@ -31,7 +31,7 @@ namespace ImageGallery.Client.Services
                 _httpClient.SetBearerToken(accessToken);
             }
 
-            _httpClient.BaseAddress = new Uri("https://localhost:44397/");
+            _httpClient.BaseAddress = new Uri("https://localhost:44381/");
             _httpClient.DefaultRequestHeaders.Accept.Clear();
             _httpClient.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/json"));
