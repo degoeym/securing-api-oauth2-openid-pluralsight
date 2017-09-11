@@ -83,7 +83,7 @@ namespace ImageGallery.Client
                 RequireHttpsMetadata = true,
                 ClientId = "imagegalleryclient",
                 Scope = { "openid", "profile", "address", "roles", "imagegalleryapi",
-                    "subscriptionlevel", "country" },
+                    "subscriptionlevel", "country", "offline_access" },
                 ResponseType = "code id_token",
                //  CallbackPath = new PathString("...")
                // SignedOutCallbackPath = new PathString("")
