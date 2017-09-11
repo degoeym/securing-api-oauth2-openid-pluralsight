@@ -207,10 +207,11 @@ namespace ImageGallery.Client.Controllers
             }
         }
 
-        [Authorize(Roles = "PayingUser")]
+        // [Authorize(Roles = "PayingUser")]
+        [Authorize(Policy = "CanOrderFrame")]
         public async Task<IActionResult> OrderFrame()
         {
-            var discoveryClient = new DiscoveryClient("https://localhost:44342/");
+            var discoveryClient = new DiscoveryClient("https://localhost:44360/");
             var metaDataResponse = await discoveryClient.GetAsync();
 
             var userInfoClient = new UserInfoClient(metaDataResponse.UserInfoEndpoint);
