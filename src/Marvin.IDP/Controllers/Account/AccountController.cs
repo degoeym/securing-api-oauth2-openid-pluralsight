@@ -30,7 +30,6 @@ namespace Marvin.IDP.Controllers.Account
     [SecurityHeaders]
     public class AccountController : Controller
     {
-        private readonly TestUserStore _users;
         private readonly IIdentityServerInteractionService _interaction;
         private readonly IEventService _events;
         private readonly AccountService _account;
@@ -79,28 +78,47 @@ namespace Marvin.IDP.Controllers.Account
             {
                 if (_marvinUserRepository.AreUserCredentialsValid(model.Username, model.Password))
                 {
-                    AuthenticationProperties props = null;
-                    // only set explicit expiration here if persistent. 
-                    // otherwise we reply upon expiration configured in cookie middleware.
-                    if (AccountOptions.AllowRememberLogin && model.RememberLogin)
-                    {
-                        props = new AuthenticationProperties
-                        {
-                            IsPersistent = true,
-                            ExpiresUtc = DateTimeOffset.UtcNow.Add(AccountOptions.RememberMeLoginDuration)
-                        };
-                    };
-
-                    // issue authentication cookie with subject ID and username
                     var user = _marvinUserRepository.GetUserByUsername(model.Username);
-                    await _events.RaiseAsync(new UserLoginSuccessEvent(user.Username, user.SubjectId, user.Username));
-                    await HttpContext.Authentication.SignInAsync(user.SubjectId, user.Username, props);
 
-                    // make sure the returnUrl is still valid, and if yes - redirect back to authorize endpoint or a local page
+                    var id = new ClaimsIdentity();
+                    id.AddClaim(new Claim(JwtClaimTypes.Subject, user.SubjectId));
+
+                    await HttpContext.Authentication.SignInAsync("idsrv.2FA", new ClaimsPrincipal(id));
+
+                    var redirectToAdditionalFactorUrl = 
+                        Url.Action("AdditionalAuthenticationFactor", 
+                        new
+                        {
+                            returnUrl = model.ReturnUrl,
+                            rememberLogin = model.RememberLogin
+                        });
+
                     if (_interaction.IsValidReturnUrl(model.ReturnUrl) || Url.IsLocalUrl(model.ReturnUrl))
                     {
-                        return Redirect(model.ReturnUrl);
+                        return Redirect(redirectToAdditionalFactorUrl);
                     }
+                    //AuthenticationProperties props = null;
+                    //// only set explicit expiration here if persistent. 
+                    //// otherwise we reply upon expiration configured in cookie middleware.
+                    //if (AccountOptions.AllowRememberLogin && model.RememberLogin)
+                    //{
+                    //    props = new AuthenticationProperties
+                    //    {
+                    //        IsPersistent = true,
+                    //        ExpiresUtc = DateTimeOffset.UtcNow.Add(AccountOptions.RememberMeLoginDuration)
+                    //    };
+                    //};
+
+                    //// issue authentication cookie with subject ID and username
+                    //var user = _marvinUserRepository.GetUserByUsername(model.Username);
+                    //await _events.RaiseAsync(new UserLoginSuccessEvent(user.Username, user.SubjectId, user.Username));
+                    //await HttpContext.Authentication.SignInAsync(user.SubjectId, user.Username, props);
+
+                    //// make sure the returnUrl is still valid, and if yes - redirect back to authorize endpoint or a local page
+                    //if (_interaction.IsValidReturnUrl(model.ReturnUrl) || Url.IsLocalUrl(model.ReturnUrl))
+                    //{
+                    //    return Redirect(model.ReturnUrl);
+                    //}
 
                     return Redirect("~/");
                 }
@@ -113,6 +131,63 @@ namespace Marvin.IDP.Controllers.Account
             // something went wrong, show form with error
             var vm = await _account.BuildLoginViewModelAsync(model);
             return View(vm);
+        }
+
+        [HttpGet]
+        public IActionResult AdditionalAuthenticationFactor(string returnUrl, bool rememberLogin)
+        {
+            var vm = new AdditionalAuthenticationFactorViewModel()
+            {
+                RememberLogin = rememberLogin,
+                ReturnUrl = returnUrl
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AdditionalAuthenticationFactor(AdditionalAuthenticationFactorViewModel model)
+        {
+            if (ModelState.IsValid)
+            {
+                var info = await HttpContext.Authentication.GetAuthenticateInfoAsync("idsrv.2FA");
+                var tempUser = info?.Principal;
+                if (tempUser == null)
+                {
+                    throw new Exception("2FA error");
+                }
+
+                var user = _marvinUserRepository.GetUserBySubjectId(tempUser.GetSubjectId());
+
+                if (model.Code != "123")
+                {
+                    ModelState.AddModelError("code", "2FA code is invalid.");
+                    return View(model);
+                }
+
+                AuthenticationProperties props = null;
+                if (AccountOptions.AllowRememberLogin && model.RememberLogin)
+                {
+                    props = new AuthenticationProperties
+                    {
+                        IsPersistent = true,
+                        ExpiresUtc = DateTimeOffset.UtcNow.Add(AccountOptions.RememberMeLoginDuration)
+                    };
+                }
+
+                await _events.RaiseAsync(new UserLoginSuccessEvent(user.Username, user.SubjectId, user.Username));
+                await HttpContext.Authentication.SignInAsync(user.SubjectId, user.Username, props);
+
+                await HttpContext.Authentication.SignOutAsync("idsrv.2FA");
+
+                if (_interaction.IsValidReturnUrl(model.ReturnUrl) || Url.IsLocalUrl(model.ReturnUrl))
+                {
+                    return Redirect(model.ReturnUrl);
+                }
+            }
+
+            return View(model);
         }
 
         /// <summary>
@@ -202,12 +277,37 @@ namespace Marvin.IDP.Controllers.Account
             var userId = userIdClaim.Value;
 
             // check if the external user is already provisioned
-            var user = _users.FindByExternalProvider(provider, userId);
+            var user = _marvinUserRepository.GetUserByProvider(provider, userId);
             if (user == null)
             {
-                // this sample simply auto-provisions new external user
-                // another common approach is to start a registrations workflow first
-                user = _users.AutoProvisionUser(provider, userId, claims);
+                if (provider == "Facebook")
+                {
+                    var email = claims.FirstOrDefault(c => 
+                        c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+                    if (email != null)
+                    {
+                        var userByEmail = _marvinUserRepository.GetUserByEmail(email.Value);
+                        if (userByEmail != null)
+                        {
+                            _marvinUserRepository.AddUserLogin(userByEmail.SubjectId, provider, userId);
+                            if (!_marvinUserRepository.Save())
+                            {
+                                throw new Exception($"Adding a login for a user failed.");
+                            }
+
+                            var continueWithUrlAfterAddingUserLogin = Url.Action("ExternalLoginCallback", new { returnUrl = returnUrl });
+
+                            return Redirect(continueWithUrlAfterAddingUserLogin);
+                        }
+                    }
+                }
+
+                var returnurlAfterRegistration = Url.Action("ExternalLoginCallback", new { returnUrl = returnUrl });
+
+                var continueWithUrl = Url.Action("RegisterUser", "UserRegistration", 
+                    new { returnUrl = returnurlAfterRegistration, provider = provider, providerUserId = userId });
+
+                return Redirect(continueWithUrl);
             }
 
             var additionalClaims = new List<Claim>();
