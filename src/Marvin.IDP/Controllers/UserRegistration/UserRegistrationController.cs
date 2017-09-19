@@ -23,9 +23,14 @@ namespace Marvin.IDP.Controllers.UserRegistration
         }
 
         [HttpGet]
-        public IActionResult RegisterUser(string returnUrl)
+        public IActionResult RegisterUser(RegistrationInputModel registrationInputModel)
         {
-            var vm = new RegisterUserViewModel() { ReturnUrl = returnUrl };
+            var vm = new RegisterUserViewModel()
+            {
+                ReturnUrl = registrationInputModel.ReturnUrl,
+                Provider = registrationInputModel.Provider,
+                ProviderUserId = registrationInputModel.ProviderUserId
+            };
             return View(vm);
         }
 
@@ -51,6 +56,17 @@ namespace Marvin.IDP.Controllers.UserRegistration
                     }
                 };
 
+                // if we're provisioning a user via external login, we must add the provider &
+                // user id at the provider ot this uer's logins
+                if (model.IsProvisioningFromExternal)
+                {
+                    userToCreate.Logins.Add(new UserLogin()
+                    {
+                        LoginProvider = model.Provider,
+                        ProviderKey = model.ProviderUserId
+                    });
+                }
+
                 _marvinUserRepository.AddUser(userToCreate);
 
                 if (!_marvinUserRepository.Save())
@@ -58,7 +74,11 @@ namespace Marvin.IDP.Controllers.UserRegistration
                     throw new Exception($"Creating a user failed.");
                 }
 
-                await HttpContext.Authentication.SignInAsync(userToCreate.SubjectId, userToCreate.Username);
+                if (!model.IsProvisioningFromExternal)
+                {
+                    await HttpContext.Authentication.SignInAsync(userToCreate.SubjectId,
+                                userToCreate.Username); 
+                }
 
                 if(_interaction.IsValidReturnUrl(model.ReturnUrl) || Url.IsLocalUrl(model.ReturnUrl))
                 {

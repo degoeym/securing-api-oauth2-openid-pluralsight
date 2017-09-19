@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using Marvin.IDP.Entities;
 using Marvin.IDP.Services;
+using IdentityServer4;
 
 namespace Marvin.IDP
 {
@@ -62,7 +63,24 @@ namespace Marvin.IDP
             marvinUserContext.Database.Migrate();
             marvinUserContext.EnsureSeedDataForContext();
 
+            app.UseCookieAuthentication(new CookieAuthenticationOptions
+            {
+                AuthenticationScheme = "idsrv.2FA",
+                AutomaticAuthenticate = false,
+                AutomaticChallenge = false
+            });
+
             app.UseIdentityServer();
+            // AppId and AppSecret not included for security purposes, as
+            // the GitHub repo I'm using is public
+            app.UseFacebookAuthentication(new FacebookOptions
+            {
+                AuthenticationScheme = "Facebook",
+                DisplayName = "Facebook",
+                SignInScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme,
+                AppId = "",
+                AppSecret = ""
+            });
             app.UseStaticFiles();
             app.UseMvcWithDefaultRoute();
         }
